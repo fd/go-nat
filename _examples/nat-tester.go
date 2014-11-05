@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/telehash/gogotelehash/util/nat"
+	"github.com/fd/go-nat"
 )
 
 func main() {
