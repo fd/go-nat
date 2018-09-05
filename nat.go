@@ -30,6 +30,9 @@ type NAT interface {
 	// AddPortMapping maps a port on the local host to an external port.
 	AddPortMapping(protocol string, internalPort int, description string, timeout time.Duration) (mappedExternalPort int, err error)
 
+	AddPortMappingSpecifyExternalPort(protocol string, internalPort, externalPort int,
+		description string, timeout time.Duration) (mappedExternalPort int, err error)
+
 	// DeletePortMapping removes a port mapping.
 	DeletePortMapping(protocol string, internalPort int) (err error)
 }
