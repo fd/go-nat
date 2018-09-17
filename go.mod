@@ -1,4 +1,4 @@
-module github.com/fd/go-nat
+module github.com/libp2p/go-nat
 
 require (
 	github.com/huin/goupnp v0.0.0-20180415215157-1395d1447324
