@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fd/go-nat"
+	"github.com/libp2p/go-nat"
 )
 
 func main() {
@@ -52,7 +52,7 @@ func main() {
 		}
 	}()
 
-	defer nat.DeletePortMapping("txp", 3080)
+	defer nat.DeletePortMapping("tcp", 3080)
 
 	http.ListenAndServe(":3080", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		rw.Header().Set("Content-Type", "text/plain")
