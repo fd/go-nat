@@ -41,6 +41,8 @@ func DiscoverGateway() (NAT, error) {
 		return nat, nil
 	case nat := <-discoverUPNP_IG2():
 		return nat, nil
+	case nat := <-discoverUPNP_GenIGDev():
+		return nat, nil
 	case nat := <-discoverNATPMP():
 		return nat, nil
 	case <-time.After(10 * time.Second):
