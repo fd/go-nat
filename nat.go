@@ -2,6 +2,7 @@
 package nat
 
 import (
+	"context"
 	"errors"
 	"math"
 	"math/rand"
@@ -34,20 +35,64 @@ type NAT interface {
 	DeletePortMapping(protocol string, internalPort int) (err error)
 }
 
+// DiscoverNATs returns all NATs discovered in the network.
+func DiscoverNATs(ctx context.Context) <-chan NAT {
+	nats := make(chan NAT)
+
+	go func() {
+		defer close(nats)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		upnpIg1 := discoverUPNP_IG1(ctx)
+		upnpIg2 := discoverUPNP_IG2(ctx)
+		natpmp := discoverNATPMP(ctx)
+		upnpGenIGDev := discoverUPNP_GenIGDev(ctx)
+		for upnpIg1 != nil || upnpIg2 != nil || natpmp != nil {
+			var (
+				nat NAT
+				ok  bool
+			)
+			select {
+			case nat, ok = <-upnpIg1:
+				if !ok {
+					upnpIg1 = nil
+				}
+			case nat, ok = <-upnpIg2:
+				if !ok {
+					upnpIg2 = nil
+				}
+			case nat, ok = <-upnpGenIGDev:
+				if !ok {
+					upnpGenIGDev = nil
+				}
+			case nat, ok = <-natpmp:
+				if !ok {
+					natpmp = nil
+				}
+			}
+			if ok {
+				select {
+				case nats <- nat:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return nats
+}
+
 // DiscoverGateway attempts to find a gateway device.
 func DiscoverGateway() (NAT, error) {
-	select {
-	case nat := <-discoverUPNP_IG1():
-		return nat, nil
-	case nat := <-discoverUPNP_IG2():
-		return nat, nil
-	case nat := <-discoverUPNP_GenIGDev():
-		return nat, nil
-	case nat := <-discoverNATPMP():
-		return nat, nil
-	case <-time.After(10 * time.Second):
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	nat := <-DiscoverNATs(ctx)
+	if nat == nil {
 		return nil, ErrNoNATFound
 	}
+	return nat, nil
 }
 
 func randomPort() int {
