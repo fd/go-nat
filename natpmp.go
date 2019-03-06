@@ -85,6 +85,7 @@ func (n *natpmpNAT) AddPortMapping(protocol string, internalPort int, descriptio
 
 	timeoutInSeconds := int(timeout / time.Second)
 
+	// Try to remap the same port.
 	if externalPort := n.ports[internalPort]; externalPort > 0 {
 		_, err = n.c.AddPortMapping(protocol, internalPort, externalPort, timeoutInSeconds)
 		if err == nil {
@@ -93,6 +94,14 @@ func (n *natpmpNAT) AddPortMapping(protocol string, internalPort int, descriptio
 		}
 	}
 
+	// Try to map our internal port.
+	_, err = n.c.AddPortMapping(protocol, internalPort, internalPort, timeoutInSeconds)
+	if err == nil {
+		n.ports[internalPort] = internalPort
+		return internalPort, nil
+	}
+
+	// Try three random ports.
 	for i := 0; i < 3; i++ {
 		externalPort := randomPort()
 		_, err = n.c.AddPortMapping(protocol, internalPort, externalPort, timeoutInSeconds)
