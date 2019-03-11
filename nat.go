@@ -32,6 +32,9 @@ type NAT interface {
 
 	// DeletePortMapping removes a port mapping.
 	DeletePortMapping(protocol string, internalPort int) (err error)
+
+	// DeleteExternalPortMapping removes an external port mapping.
+	DeleteExternalPortMapping(protocol string, externalPort int) (err error)
 }
 
 // DiscoverGateway attempts to find a gateway device.
