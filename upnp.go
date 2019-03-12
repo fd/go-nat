@@ -2,11 +2,15 @@ package nat
 
 import (
 	"net"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/huin/goupnp"
 	"github.com/huin/goupnp/dcps/internetgateway1"
 	"github.com/huin/goupnp/dcps/internetgateway2"
+
+	"github.com/koron/go-ssdp"
 )
 
 var (
@@ -119,6 +123,62 @@ func discoverUPNP_IG2() <-chan NAT {
 			})
 		}
 
+	}()
+	return res
+}
+
+func discoverUPNP_GenIGDev() <-chan NAT {
+	res := make(chan NAT, 1)
+	go func() {
+		DeviceList, err := ssdp.Search(ssdp.All, 5, "")
+		if err != nil {
+			return
+		}
+		var gw ssdp.Service
+		for _, Service := range DeviceList {
+			if strings.Contains(Service.Type, "InternetGatewayDevice") {
+				gw = Service
+				break
+			}
+		}
+
+		DeviceURL, err := url.Parse(gw.Location)
+		if err != nil {
+			return
+		}
+		RootDevice, err := goupnp.DeviceByURL(DeviceURL)
+		if err != nil {
+			return
+		}
+
+		RootDevice.Device.VisitServices(func(srv *goupnp.Service) {
+			switch srv.ServiceType {
+			case internetgateway1.URN_WANIPConnection_1:
+				client := &internetgateway1.WANIPConnection1{ServiceClient: goupnp.ServiceClient{
+					SOAPClient: srv.NewSOAPClient(),
+					RootDevice: RootDevice,
+					Service:    srv,
+				}}
+				_, isNat, err := client.GetNATRSIPStatus()
+				if err == nil && isNat {
+					res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG1-IP1)", RootDevice}
+					return
+				}
+
+			case internetgateway1.URN_WANPPPConnection_1:
+				client := &internetgateway1.WANPPPConnection1{ServiceClient: goupnp.ServiceClient{
+					SOAPClient: srv.NewSOAPClient(),
+					RootDevice: RootDevice,
+					Service:    srv,
+				}}
+				_, isNat, err := client.GetNATRSIPStatus()
+				if err == nil && isNat {
+					res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG1-PPP1)", RootDevice}
+					return
+				}
+
+			}
+		})
 	}()
 	return res
 }
