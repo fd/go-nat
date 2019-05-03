@@ -34,7 +34,7 @@ func main() {
 	}
 	log.Printf("external address: %s", eaddr)
 
-	eport, err := nat.AddPortMapping("tcp", 3080, "http", 60)
+	eport, err := nat.AddPortMapping("tcp", 3080, "http", 60 * time.Second)
 	if err != nil {
 		log.Fatalf("error: %s", err)
 	}
@@ -45,7 +45,7 @@ func main() {
 		for {
 			time.Sleep(30 * time.Second)
 
-			_, err = nat.AddPortMapping("tcp", 3080, "http", 60)
+			_, err = nat.AddPortMapping("tcp", 3080, "http", 60 * time.Second)
 			if err != nil {
 				log.Fatalf("error: %s", err)
 			}
