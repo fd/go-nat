@@ -2,11 +2,14 @@
 package nat
 
 import (
+	"context"
 	"errors"
 	"math"
 	"math/rand"
 	"net"
 	"time"
+
+	"github.com/jackpal/gateway"
 )
 
 var ErrNoExternalAddress = errors.New("no external address")
@@ -34,20 +37,87 @@ type NAT interface {
 	DeletePortMapping(protocol string, internalPort int) (err error)
 }
 
+// DiscoverNATs returns all NATs discovered in the network.
+func DiscoverNATs(ctx context.Context) <-chan NAT {
+	nats := make(chan NAT)
+
+	go func() {
+		defer close(nats)
+
+		upnpIg1 := discoverUPNP_IG1(ctx)
+		upnpIg2 := discoverUPNP_IG2(ctx)
+		natpmp := discoverNATPMP(ctx)
+		upnpGenIGDev := discoverUPNP_GenIGDev(ctx)
+		for upnpIg1 != nil || upnpIg2 != nil || natpmp != nil {
+			var (
+				nat NAT
+				ok  bool
+			)
+			select {
+			case nat, ok = <-upnpIg1:
+				if !ok {
+					upnpIg1 = nil
+				}
+			case nat, ok = <-upnpIg2:
+				if !ok {
+					upnpIg2 = nil
+				}
+			case nat, ok = <-upnpGenIGDev:
+				if !ok {
+					upnpGenIGDev = nil
+				}
+			case nat, ok = <-natpmp:
+				if !ok {
+					natpmp = nil
+				}
+			}
+			if ok {
+				select {
+				case nats <- nat:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return nats
+}
+
 // DiscoverGateway attempts to find a gateway device.
 func DiscoverGateway() (NAT, error) {
-	select {
-	case nat := <-discoverUPNP_IG1():
-		return nat, nil
-	case nat := <-discoverUPNP_IG2():
-		return nat, nil
-	case nat := <-discoverUPNP_GenIGDev():
-		return nat, nil
-	case nat := <-discoverNATPMP():
-		return nat, nil
-	case <-time.After(10 * time.Second):
-		return nil, ErrNoNATFound
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var nats []NAT
+	for nat := range DiscoverNATs(ctx) {
+		nats = append(nats, nat)
 	}
+	switch len(nats) {
+	case 0:
+		return nil, ErrNoNATFound
+	case 1:
+		return nats[0], nil
+	}
+	gw, _ := gateway.DiscoverGateway()
+	bestNAT := nats[0]
+	natGw, _ := bestNAT.GetDeviceAddress()
+	bestNATIsGw := gw != nil && natGw.Equal(gw)
+	// 1. Prefer gateways discovered _last_. This is an OK heuristic for
+	// discovering the most-upstream (furthest) NAT.
+	// 2. Prefer gateways that actually match our known gateway address.
+	// Some relays like to claim to be NATs even if they aren't.
+	for _, nat := range nats[1:] {
+		natGw, _ := nat.GetDeviceAddress()
+		natIsGw := gw != nil && natGw.Equal(gw)
+
+		if bestNATIsGw && !natIsGw {
+			continue
+		}
+
+		bestNATIsGw = natIsGw
+		bestNAT = nat
+	}
+	return bestNAT, nil
 }
 
 func randomPort() int {

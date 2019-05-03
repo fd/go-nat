@@ -1,6 +1,7 @@
 package nat
 
 import (
+	"context"
 	"net"
 	"time"
 
@@ -12,25 +13,42 @@ var (
 	_ NAT = (*natpmpNAT)(nil)
 )
 
-func discoverNATPMP() <-chan NAT {
+func discoverNATPMP(ctx context.Context) <-chan NAT {
 	res := make(chan NAT, 1)
 
 	ip, err := gateway.DiscoverGateway()
 	if err == nil {
-		go discoverNATPMPWithAddr(res, ip)
+		go func() {
+			defer close(res)
+			// Unfortunately, we can't actually _stop_ the natpmp
+			// library. However, we can at least close _our_ channel
+			// and walk away.
+			select {
+			case client, ok := <-discoverNATPMPWithAddr(ip):
+				if ok {
+					res <- &natpmpNAT{client, ip, make(map[int]int)}
+				}
+			case <-ctx.Done():
+			}
+		}()
+	} else {
+		close(res)
 	}
-
 	return res
 }
 
-func discoverNATPMPWithAddr(c chan NAT, ip net.IP) {
-	client := natpmp.NewClient(ip)
-	_, err := client.GetExternalAddress()
-	if err != nil {
-		return
-	}
-
-	c <- &natpmpNAT{client, ip, make(map[int]int)}
+func discoverNATPMPWithAddr(ip net.IP) <-chan *natpmp.Client {
+	res := make(chan *natpmp.Client, 1)
+	go func() {
+		defer close(res)
+		client := natpmp.NewClient(ip)
+		_, err := client.GetExternalAddress()
+		if err != nil {
+			return
+		}
+		res <- client
+	}()
+	return res
 }
 
 type natpmpNAT struct {

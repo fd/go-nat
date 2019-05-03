@@ -1,6 +1,7 @@
 package nat
 
 import (
+	"context"
 	"net"
 	"net/url"
 	"strings"
@@ -17,9 +18,10 @@ var (
 	_ NAT = (*upnp_NAT)(nil)
 )
 
-func discoverUPNP_IG1() <-chan NAT {
-	res := make(chan NAT, 1)
+func discoverUPNP_IG1(ctx context.Context) <-chan NAT {
+	res := make(chan NAT)
 	go func() {
+		defer close(res)
 
 		// find devices
 		devs, err := goupnp.DiscoverDevices(internetgateway1.URN_WANConnectionDevice_1)
@@ -33,6 +35,9 @@ func discoverUPNP_IG1() <-chan NAT {
 			}
 
 			dev.Root.Device.VisitServices(func(srv *goupnp.Service) {
+				if ctx.Err() != nil {
+					return
+				}
 				switch srv.ServiceType {
 				case internetgateway1.URN_WANIPConnection_1:
 					client := &internetgateway1.WANIPConnection1{ServiceClient: goupnp.ServiceClient{
@@ -42,8 +47,10 @@ func discoverUPNP_IG1() <-chan NAT {
 					}}
 					_, isNat, err := client.GetNATRSIPStatus()
 					if err == nil && isNat {
-						res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG1-IP1)", dev.Root}
-						return
+						select {
+						case res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG1-IP1)", dev.Root}:
+						case <-ctx.Done():
+						}
 					}
 
 				case internetgateway1.URN_WANPPPConnection_1:
@@ -54,8 +61,10 @@ func discoverUPNP_IG1() <-chan NAT {
 					}}
 					_, isNat, err := client.GetNATRSIPStatus()
 					if err == nil && isNat {
-						res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG1-PPP1)", dev.Root}
-						return
+						select {
+						case res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG1-PPP1)", dev.Root}:
+						case <-ctx.Done():
+						}
 					}
 
 				}
@@ -66,9 +75,10 @@ func discoverUPNP_IG1() <-chan NAT {
 	return res
 }
 
-func discoverUPNP_IG2() <-chan NAT {
-	res := make(chan NAT, 1)
+func discoverUPNP_IG2(ctx context.Context) <-chan NAT {
+	res := make(chan NAT)
 	go func() {
+		defer close(res)
 
 		// find devices
 		devs, err := goupnp.DiscoverDevices(internetgateway2.URN_WANConnectionDevice_2)
@@ -82,6 +92,9 @@ func discoverUPNP_IG2() <-chan NAT {
 			}
 
 			dev.Root.Device.VisitServices(func(srv *goupnp.Service) {
+				if ctx.Err() != nil {
+					return
+				}
 				switch srv.ServiceType {
 				case internetgateway2.URN_WANIPConnection_1:
 					client := &internetgateway2.WANIPConnection1{ServiceClient: goupnp.ServiceClient{
@@ -91,8 +104,10 @@ func discoverUPNP_IG2() <-chan NAT {
 					}}
 					_, isNat, err := client.GetNATRSIPStatus()
 					if err == nil && isNat {
-						res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG2-IP1)", dev.Root}
-						return
+						select {
+						case res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG2-IP1)", dev.Root}:
+						case <-ctx.Done():
+						}
 					}
 
 				case internetgateway2.URN_WANIPConnection_2:
@@ -103,8 +118,10 @@ func discoverUPNP_IG2() <-chan NAT {
 					}}
 					_, isNat, err := client.GetNATRSIPStatus()
 					if err == nil && isNat {
-						res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG2-IP2)", dev.Root}
-						return
+						select {
+						case res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG2-IP2)", dev.Root}:
+						case <-ctx.Done():
+						}
 					}
 
 				case internetgateway2.URN_WANPPPConnection_1:
@@ -115,8 +132,10 @@ func discoverUPNP_IG2() <-chan NAT {
 					}}
 					_, isNat, err := client.GetNATRSIPStatus()
 					if err == nil && isNat {
-						res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG2-PPP1)", dev.Root}
-						return
+						select {
+						case res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG2-PPP1)", dev.Root}:
+						case <-ctx.Done():
+						}
 					}
 
 				}
@@ -127,9 +146,11 @@ func discoverUPNP_IG2() <-chan NAT {
 	return res
 }
 
-func discoverUPNP_GenIGDev() <-chan NAT {
+func discoverUPNP_GenIGDev(ctx context.Context) <-chan NAT {
 	res := make(chan NAT, 1)
 	go func() {
+		defer close(res)
+
 		DeviceList, err := ssdp.Search(ssdp.All, 5, "")
 		if err != nil {
 			return
@@ -152,6 +173,9 @@ func discoverUPNP_GenIGDev() <-chan NAT {
 		}
 
 		RootDevice.Device.VisitServices(func(srv *goupnp.Service) {
+			if ctx.Err() != nil {
+				return
+			}
 			switch srv.ServiceType {
 			case internetgateway1.URN_WANIPConnection_1:
 				client := &internetgateway1.WANIPConnection1{ServiceClient: goupnp.ServiceClient{
@@ -161,8 +185,10 @@ func discoverUPNP_GenIGDev() <-chan NAT {
 				}}
 				_, isNat, err := client.GetNATRSIPStatus()
 				if err == nil && isNat {
-					res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG1-IP1)", RootDevice}
-					return
+					select {
+					case res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG1-IP1)", RootDevice}:
+					case <-ctx.Done():
+					}
 				}
 
 			case internetgateway1.URN_WANPPPConnection_1:
@@ -173,8 +199,10 @@ func discoverUPNP_GenIGDev() <-chan NAT {
 				}}
 				_, isNat, err := client.GetNATRSIPStatus()
 				if err == nil && isNat {
-					res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG1-PPP1)", RootDevice}
-					return
+					select {
+					case res <- &upnp_NAT{client, make(map[int]int), "UPNP (IG1-PPP1)", RootDevice}:
+					case <-ctx.Done():
+					}
 				}
 
 			}
