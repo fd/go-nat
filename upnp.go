@@ -257,6 +257,18 @@ func (u *upnp_NAT) DeletePortMapping(protocol string, internalPort int) error {
 	return nil
 }
 
+func (u *upnp_NAT) DeleteExternalPortMapping(protocol string, externalPort int) error {
+	if externalPort <= 0 {
+		return nil
+	}
+	for i, e := range u.ports {
+		if e == externalPort {
+			delete(u.ports, i)
+		}
+	}
+	return u.c.DeletePortMapping("", uint16(externalPort), mapProtocol(protocol))
+}
+
 func (u *upnp_NAT) GetDeviceAddress() (net.IP, error) {
 	addr, err := net.ResolveUDPAddr("udp4", u.rootDevice.URLBase.Host)
 	if err != nil {

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/jackpal/gateway"
-	"github.com/jackpal/go-nat-pmp"
+	natpmp "github.com/jackpal/go-nat-pmp"
 )
 
 var (
@@ -107,6 +107,10 @@ func (n *natpmpNAT) AddPortMapping(protocol string, internalPort int, descriptio
 
 func (n *natpmpNAT) DeletePortMapping(protocol string, internalPort int) (err error) {
 	delete(n.ports, internalPort)
+	return nil
+}
+
+func (u *natpmpNAT) DeleteExternalPortMapping(protocol string, externalPort int) error {
 	return nil
 }
 
