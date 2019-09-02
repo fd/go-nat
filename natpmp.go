@@ -105,6 +105,24 @@ func (n *natpmpNAT) AddPortMapping(protocol string, internalPort int, descriptio
 	return 0, err
 }
 
+func (n *natpmpNAT) AddPortMappingSpecifyExternalPort(protocol string, internalPort, externalPort int,
+	description string, timeout time.Duration) (int, error) {
+
+	var (
+		err error
+	)
+
+	timeoutInSeconds := int(timeout / time.Second)
+
+	_, err = n.c.AddPortMapping(protocol, internalPort, externalPort, timeoutInSeconds)
+	if err == nil {
+		n.ports[internalPort] = externalPort
+		return externalPort, nil
+	}
+
+	return 0, err
+}
+
 func (n *natpmpNAT) DeletePortMapping(protocol string, internalPort int) (err error) {
 	delete(n.ports, internalPort)
 	return nil
