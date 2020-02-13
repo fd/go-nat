@@ -45,6 +45,8 @@ func DiscoverGateway() (NAT, error) {
 		return nat, nil
 	case nat := <-discoverNATPMP():
 		return nat, nil
+	case nat := <-discoverPCP():
+		return nat, nil
 	case <-time.After(10 * time.Second):
 		return nil, ErrNoNATFound
 	}
